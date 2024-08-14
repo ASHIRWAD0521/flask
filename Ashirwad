@@ -1,0 +1,52 @@
+from flask import Flask, request
+from datetime import datetime
+import json
+
+app = Flask(__name__)
+
+appointments = {}
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.json
+
+    user_id = data['user_id']
+    message = data['message']
+
+    if user_id not in appointments:
+        appointments[user_id] = {}
+
+    if 'service' not in appointments[user_id]:
+        appointments[user_id]['service'] = message
+        return json.dumps({'message': 'Please enter the preferred date for the appointment (e.g., 2024-08-14)'})
+    
+    elif 'date' not in appointments[user_id]:
+        try:
+            appointments[user_id]['date'] = datetime.strptime(message, '%Y-%m-%d').date()
+            return json.dumps({'message': 'Please enter the preferred time for the appointment (e.g., 15:00)'})
+        except ValueError:
+            return json.dumps({'message': 'Invalid date format. Please enter the date as YYYY-MM-DD.'})
+    
+    elif 'time' not in appointments[user_id]:
+        try:
+            appointments[user_id]['time'] = datetime.strptime(message, '%H:%M').time()
+            return json.dumps({
+                'message': f'Your appointment for {appointments[user_id]["service"]} is scheduled on '
+                           f'{appointments[user_id]["date"]} at {appointments[user_id]["time"]}. '
+                           f'To confirm, type "yes". To cancel, type "no".'
+            })
+        except ValueError:
+            return json.dumps({'message': 'Invalid time format. Please enter the time as HH:MM.'})
+    
+    elif message.lower() == 'yes':
+        return json.dumps({'message': 'Your appointment has been confirmed!'})
+    
+    elif message.lower() == 'no':
+        appointments.pop(user_id, None)
+        return json.dumps({'message': 'Your appointment has been cancelled. Please start again.'})
+    
+    else:
+        return json.dumps({'message': 'I didn\'t understand that. Please respond with "yes" or "no".'})
+
+if __name__ == '__main__':
+    app.run(port=5000)
